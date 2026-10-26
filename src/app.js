@@ -12,7 +12,7 @@ function authorized(header, expected) {
   return supplied.length === wanted.length && timingSafeEqual(supplied, wanted);
 }
 
-export function createApp({ store, adminToken, matchIngestToken, corsOrigin = '' }) {
+export function createApp({ store, adminToken, matchIngestToken, corsOrigin = '', webGameOrigin = 'https://html-classic.itch.zone' }) {
   const app = express();
   const allowedOrigins = new Set(corsOrigin.split(',').map(origin => origin.trim()).filter(Boolean));
   app.disable('x-powered-by');
@@ -66,6 +66,29 @@ export function createApp({ store, adminToken, matchIngestToken, corsOrigin = ''
       return res.status(401).json({ error: 'Se requiere el token de ingestión de partidas.' });
     }
     const match = validateMatch(req.body);
+    const result = await store.recordMatch(match);
+    res.status(result.duplicate ? 200 : 201).json({ matchId: match.matchId,
+      saved: !result.duplicate, duplicate: result.duplicate,
+      winnerSlot: match.players.find(p => p.result === 'win')?.slot ?? null });
+  });
+
+  // WebGL cannot keep a bearer token secret. Accept only the configured game origin
+  // and limit submissions per IP; this is abuse control, not proof of a real match.
+  const webSubmissionTimes = new Map();
+  app.post('/api/matches/web', async (req, res) => {
+    if (req.get('origin') !== webGameOrigin) {
+      return res.status(403).json({ error: 'Origen del juego no permitido.' });
+    }
+    const now = Date.now();
+    const cutoff = now - 60 * 60 * 1000;
+    const ip = req.ip;
+    const recent = (webSubmissionTimes.get(ip) ?? []).filter(time => time > cutoff);
+    if (recent.length >= 60) {
+      return res.status(429).json({ error: 'Demasiadas partidas enviadas. Intenta más tarde.' });
+    }
+    const match = validateMatch(req.body);
+    recent.push(now);
+    webSubmissionTimes.set(ip, recent);
     const result = await store.recordMatch(match);
     res.status(result.duplicate ? 200 : 201).json({ matchId: match.matchId,
       saved: !result.duplicate, duplicate: result.duplicate,

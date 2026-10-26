@@ -19,6 +19,7 @@ No se guardan nombres, correos ni posiciones por fotograma. `playerId` debe ser 
 | `GET /api/test/telemetry` | Métricas agregadas: Win Rate, KDR, supervivencia, impactos y documentos | Público |
 | `POST /api/test/seed` | Reemplaza sólo las partidas de prueba con 100–1,000 registros | `ADMIN_TOKEN` |
 | `POST /api/matches` | Guarda una partida real con sus dos jugadores | `MATCH_INGEST_TOKEN` |
+| `POST /api/matches/web` | Guarda una partida desde el juego WebGL de itch.io | Origen del iframe permitido; límite de 60 envíos por hora por IP |
 
 `GET /api/test/telemetry` acepta `source=all|seed|live` y `playerId=...`. Sin filtros agrupa **resultados de jugadores**: una partida aporta dos resultados. `winRatePercent = victorias / resultados de jugadores × 100`; para el porcentaje de una persona usa `playerId`. `kdr = eliminaciones / max(1, veces eliminado)`. `averageSurvivalSeconds` es el promedio de los segundos vivos por resultado de jugador. Con cero resultados las métricas son cero. `queryMs` y `serverProcessingMs` sirven para diagnóstico interno; la meta de 200 ms debe verificarse midiendo una petición HTTP real desde el cliente.
 
@@ -90,8 +91,8 @@ Sube esta carpeta a un repositorio propio, crea PostgreSQL en Render y un **Web 
 
 La instancia web gratuita de Render se suspende después de inactividad y puede tardar cerca de un minuto en despertar; ese primer request no cumple la meta de 200 ms. La base gratuita expira a los 30 días. Para una evaluación estricta de disponibilidad/latencia usa un servicio que permanezca activo y mide desde la ubicación del evaluador. No se puede garantizar <200 ms únicamente porque la consulta SQL sea rápida.
 
-## Conexión pendiente con Unity
+## Conexión con Unity
 
-Este repositorio ya recibe el resumen real, pero el juego actual **todavía no lo envía**. En `OfficeFusionPlayer`, el host tendrá que contar lanzamientos, impactos, eliminaciones propias y sufridas, y tiempo vivo. En `OfficeHudController.FinishRound`, el host deberá reunir ambos resultados, crear un `matchId` una sola vez y hacer un `POST /api/matches` con reintentos usando el mismo ID. Las dos cuentas de impacto y eliminación se deben actualizar en el punto donde el host aplica daño a través de `PaperBallProjectile`; no estimarlas desde la UI.
+Al terminar la ronda, el host reúne los contadores de ambos jugadores y envía el resultado una sola vez. Reintenta con el mismo `matchId` si falla la red. La build WebGL usa `POST /api/matches/web` y no contiene `MATCH_INGEST_TOKEN`; las builds nativas pueden usar el endpoint protegido si se configura un emisor confiable.
 
-`MATCH_INGEST_TOKEN` está pensado para un **emisor confiable del lado servidor**. El modo Host actual corre en el dispositivo de un jugador: cualquier clave embebida en una build de Unity podría extraerse y falsificar resultados. Para estadísticas competitivas reales se necesita un servidor dedicado o un mecanismo que verifique el resultado con Photon. Durante una demostración controlada se puede probar el endpoint con Postman/PowerShell, pero no considerar segura una clave metida en el cliente.
+El endpoint WebGL comprueba el origen, valida los datos y limita la frecuencia, pero un cliente público todavía puede falsificar resultados. Las estadísticas competitivas requerirían validar la partida en un servidor dedicado o con una prueba verificable de Photon. Para la evaluación, comprueba una partida real con `GET /api/test/telemetry?source=live` después de jugarla.

@@ -129,3 +129,27 @@ test('preflight WebGL permite sólo los orígenes configurados', async () => {
     assert.equal(other.headers.get('access-control-allow-origin'), null);
   } finally { await api.close(); }
 });
+
+test('WebGL guarda una partida sin incluir el token privado en el cliente', async () => {
+  const origin = 'https://html-classic.itch.zone';
+  const api = await fixture(origin);
+  try {
+    const match = generateSeedMatches(100, 13)[0];
+    const forbidden = await fetch(api.url + '/api/matches/web', {
+      method: 'POST', headers: { Origin: 'https://example.com', 'Content-Type': 'application/json' },
+      body: JSON.stringify(match)
+    });
+    assert.equal(forbidden.status, 403);
+    const saved = await fetch(api.url + '/api/matches/web', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify(match)
+    });
+    assert.equal(saved.status, 201);
+    const retry = await fetch(api.url + '/api/matches/web', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify(match)
+    });
+    assert.equal(retry.status, 200);
+    assert.equal((await request(api.url, '/api/test/telemetry?source=live')).body.totalMatches, 1);
+  } finally { await api.close(); }
+});
