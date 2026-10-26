@@ -62,8 +62,12 @@ export function validateMatch(value) {
       survivalSeconds: p.survivalSeconds
     };
   });
-  if (players[0].slot === players[1].slot || players[0].playerId === players[1].playerId) {
-    throw new ValidationError('Los jugadores deben tener slots e identificadores diferentes.');
+  if (players[0].slot === players[1].slot) {
+    throw new ValidationError('Los jugadores deben tener slots diferentes.');
+  }
+  // Two tabs in one browser can share Unity PlayerPrefs. Keep both results distinct.
+  if (players[0].playerId === players[1].playerId) {
+    players[1].playerId = players[1].playerId.slice(0, 57) + `-slot-${players[1].slot}`;
   }
   for (const [i, p] of players.entries()) {
     if (typeof p.survivalSeconds !== 'number' || !Number.isFinite(p.survivalSeconds) ||

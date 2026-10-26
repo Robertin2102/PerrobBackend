@@ -153,3 +153,18 @@ test('WebGL guarda una partida sin incluir el token privado en el cliente', asyn
     assert.equal((await request(api.url, '/api/test/telemetry?source=live')).body.totalMatches, 1);
   } finally { await api.close(); }
 });
+
+test('dos pestañas con el mismo PlayerPrefs conservan dos resultados', async () => {
+  const origin = 'https://html-classic.itch.zone';
+  const api = await fixture(origin);
+  try {
+    const match = generateSeedMatches(100, 23)[0];
+    match.players[1].playerId = match.players[0].playerId;
+    const saved = await fetch(api.url + '/api/matches/web', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify(match)
+    });
+    assert.equal(saved.status, 201);
+    assert.equal((await request(api.url, '/api/test/telemetry?source=live')).body.playerResults, 2);
+  } finally { await api.close(); }
+});
