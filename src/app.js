@@ -14,10 +14,11 @@ function authorized(header, expected) {
 
 export function createApp({ store, adminToken, matchIngestToken, corsOrigin = '' }) {
   const app = express();
+  const allowedOrigins = new Set(corsOrigin.split(',').map(origin => origin.trim()).filter(Boolean));
   app.disable('x-powered-by');
   app.use((req, res, next) => {
-    if (corsOrigin && req.headers.origin === corsOrigin) {
-      res.set('Access-Control-Allow-Origin', corsOrigin);
+    if (allowedOrigins.has(req.headers.origin)) {
+      res.set('Access-Control-Allow-Origin', req.headers.origin);
       res.set('Vary', 'Origin');
       res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
       res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

@@ -14,8 +14,9 @@ const pool = new Pool({ connectionString: DATABASE_URL, max: 10 });
 const store = createStore(pool);
 try {
   await store.init();
+  const corsOrigins = [CORS_ORIGIN, 'https://html-classic.itch.zone'].filter(Boolean).join(',');
   const app = createApp({ store, adminToken: ADMIN_TOKEN,
-    matchIngestToken: MATCH_INGEST_TOKEN, corsOrigin: CORS_ORIGIN });
+    matchIngestToken: MATCH_INGEST_TOKEN, corsOrigin: corsOrigins });
   const server = app.listen(port, '0.0.0.0', () => console.log(`API escuchando en puerto ${port}`));
   const shutdown = () => server.close(() => pool.end());
   process.on('SIGTERM', shutdown);

@@ -8,13 +8,13 @@ import { generateSeedMatches } from '../src/seed.js';
 const adminToken = 'admin-token-for-tests-1234567890';
 const matchIngestToken = 'match-token-for-tests-1234567890';
 
-async function fixture() {
+async function fixture(corsOrigin = '') {
   const db = newDb();
   const { Pool } = db.adapters.createPg();
   const pool = new Pool();
   const store = createStore(pool);
   await store.init();
-  const server = createApp({ store, adminToken, matchIngestToken }).listen(0, '127.0.0.1');
+  const server = createApp({ store, adminToken, matchIngestToken, corsOrigin }).listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
   return { url, async close() { await new Promise(resolve => server.close(resolve)); await pool.end(); } };
@@ -108,4 +108,24 @@ test('generador reproducible con la misma semilla', () => {
   assert.equal(a.length, 100);
   assert.equal(a[0].matchId, b[0].matchId);
   assert.equal(a[0].players[0].deliveredDocuments, b[0].players[0].deliveredDocuments);
+});
+
+test('preflight WebGL permite sólo los orígenes configurados', async () => {
+  const origin = 'https://html-classic.itch.zone';
+  const api = await fixture(`${origin},https://otro.example`);
+  try {
+    const preflight = await fetch(api.url + '/api/matches', {
+      method: 'OPTIONS',
+      headers: { Origin: origin, 'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type' }
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+    assert.match(preflight.headers.get('access-control-allow-headers'), /Authorization/);
+
+    const other = await fetch(api.url + '/api/matches', {
+      method: 'OPTIONS', headers: { Origin: 'https://desconocido.example' }
+    });
+    assert.equal(other.headers.get('access-control-allow-origin'), null);
+  } finally { await api.close(); }
 });
